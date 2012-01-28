@@ -46,7 +46,6 @@ namespace CoMMversatiOns
             bot.Region = "SLROUTE";
             bot.ServerUrl = "http://localhost:9000";
             bot.Position = new Vector3(128, 128, 22);*/
-
             bot.LoadConfig("Resources/config.xml");
 
             bot.Initialize();

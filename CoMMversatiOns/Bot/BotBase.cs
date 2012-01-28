@@ -23,6 +23,7 @@ using System.Text;
 using OpenMetaverse;
 using System.Xml.Linq;
 using CoMMversatiOns.Events;
+using OpenMetaverse.Packets;
 
 namespace CoMMversatiOns.Bot
 {
@@ -57,6 +58,12 @@ namespace CoMMversatiOns.Bot
         /// User position in the virtual world
         /// </summary>
         public Vector3 Position { get; set; }
+
+        /// <summary>
+        /// User angle in the virtual world
+        /// </summary>
+        public float Angle { get; set; }
+
 #endregion
 
 #region Server data
@@ -120,8 +127,20 @@ namespace CoMMversatiOns.Bot
             }
             catch (Exception e)
             {
-                
             }
+
+            XElement angle = rootElem.Element(XName.Get("initialAngle"));
+            try
+            {
+                float yaw;
+                float.TryParse(angle.Attribute(XName.Get("yaw")).Value, out yaw);
+
+                Angle = yaw;
+            }
+            catch (Exception e)
+            {
+            }
+
         }
 
         /// <summary>
@@ -138,19 +157,83 @@ namespace CoMMversatiOns.Bot
         public void Connect()
         {
             Client = new GridClient();
+            Client.Appearance.AppearanceSet += new EventHandler<AppearanceSetEventArgs>(Appearance_AppearanceSet);
 
             string startLocation = NetworkManager.StartLocation(Region, (int)Position.X, (int)Position.Y, (int)Position.Z);
             Client.Network.SimConnected += new EventHandler<SimConnectedEventArgs>(Network_OnConnected);
             Client.Settings.LOGIN_SERVER = ServerUrl;
             string[] pointAtt = new string[8];
-
+            
             if (Client.Network.Login(FirstName, LastName, Password, "", startLocation, ""))
             {
                 Client.Network.SimConnected += new EventHandler<SimConnectedEventArgs>(Network_OnConnected);
                 Console.WriteLine("Bot Login Message: " + Client.Network.LoginMessage);
-                Client.Appearance.RequestSetAppearance();//.SetPreviousAppearance(false);
+                //Client.Appearance.SetPreviousAppearance(true);
+                
+                //Client.Appearance.RequestSetAppearance(true);//.SetPreviousAppearance(false);
+                
                 Client.Self.ChatFromSimulator += new EventHandler<ChatEventArgs>(Self_ChatFromSimulator);
             }
+        }
+
+        void Network_EventQueueRunning(object sender, EventQueueRunningEventArgs e)
+        {
+            Console.WriteLine("Network_EventQueueRunning");
+            if (e.Simulator == Client.Network.CurrentSim)
+            {
+                Client.Appearance.RequestSetAppearance(true);
+            }
+        }
+
+        void Network_SimChanged(object sender, SimChangedEventArgs e)
+        {
+            Console.WriteLine("Network_SimChanged");
+            if (e.PreviousSimulator != null)
+            {
+                Client.Appearance.RequestSetAppearance(false);
+               // AppearanceManager.
+                //LoadOutfit("Clothing/Ayudante English");
+            }
+        }
+
+        void Appearance_AppearanceSet(object sender, AppearanceSetEventArgs e)
+        {
+            Console.WriteLine("AppearanceSet!! Success: " +e.Success);
+
+            if (!e.Success)
+            {
+                LoadOutfit("Clothing/" + FirstName + " " + LastName);
+            }
+        }
+
+        private void LoadOutfit(string target)
+        {
+            UUID folder = Client.Inventory.FindObjectByPath(Client.Inventory.Store.RootFolder.UUID, Client.Self.AgentID, target, 20 * 1000);
+
+            if (folder == UUID.Zero)
+            {
+                Console.WriteLine("ERROR: Outfit path " + target + " not found");
+                return;
+            }
+
+            List<InventoryBase> contents = Client.Inventory.FolderContents(folder, Client.Self.AgentID, true, true, InventorySortOrder.ByName, 20 * 1000);
+            List<InventoryItem> items = new List<InventoryItem>();
+
+            if (contents == null)
+            {
+                Console.WriteLine("ERROR: Failed to get contents of " + target);
+                return;
+            }
+
+            foreach (InventoryBase item in contents)
+            {
+                if (item is InventoryItem)
+                    items.Add((InventoryItem)item);
+            }
+
+            Client.Appearance.ReplaceOutfit(items);
+
+            Console.WriteLine("Starting to change outfit to " + target);
         }
 
         /// <summary>
@@ -185,7 +268,7 @@ namespace CoMMversatiOns.Bot
                 //The Message that is sent with the event is the original message without the verb
                 foreach (string action in Handlers.Keys)
                 {
-                    if (e.Message.StartsWith(action))
+                    if (e.Message.ToLower().StartsWith(action))
                     {
                         ChatActionEventArgs args = new ChatActionEventArgs();
                         args.Message = e.Message.Replace(action + " ", "");
@@ -204,10 +287,23 @@ namespace CoMMversatiOns.Bot
         private void Network_OnConnected(object sender, SimConnectedEventArgs e)
         {
             Console.WriteLine("The bot is connected");
+            //Client.CurrentDirectory = Inventory.Store.RootFolder;
             Client.Self.Movement.AlwaysRun = false;
+            Client.Network.SimChanged += new EventHandler<SimChangedEventArgs>(Network_SimChanged);
+            Client.Network.EventQueueRunning += new EventHandler<EventQueueRunningEventArgs>(Network_EventQueueRunning);
+            //LoadOutfit("Clothing/" + FirstName + " " + LastName);
             System.Threading.Thread.Sleep(3000);
-            //client.Objects.AvatarUpdate += new EventHandler<AvatarUpdateEventArgs>(Objects_AvatarUpdate);
 
+            float rad = (float)DegreeToRadian(Angle);
+
+            Console.WriteLine("angulo: " + Angle + " - rad: " + rad);
+            Client.Self.Movement.BodyRotation = Quaternion.CreateFromEulers(0, 0, (float)DegreeToRadian(Angle));
+            //client.Objects.AvatarUpdate += new EventHandler<AvatarUpdateEventArgs>(Objects_AvatarUpdate);
+        }
+
+        private double DegreeToRadian(double angle)
+        {
+            return Math.PI * angle / 180.0;
         }
     }
 }

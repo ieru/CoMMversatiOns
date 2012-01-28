@@ -3,9 +3,10 @@
   <serverUrl>http://localhost:9000</serverUrl>
   <region>SLROUTE</region>
   
-  <firstName>Mr</firstName>
-  <lastName>Bot</lastName>
-  <password>bot</password>
+  <firstName>Ayudante</firstName>
+  <lastName>English</lastName>
+  <password>1234</password>
 
-  <initialPosition x="128" y="128" z="22" />
+  <initialPosition x="126" y="126" z="25" />
+  <initialAngle yaw="90" />
 </config>
